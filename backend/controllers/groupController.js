@@ -4,7 +4,7 @@ exports.createGroup = async (req, res) => {
 
   try {
 
-    const { groupName,members, createdBy } = req.body;
+    const { groupName, members, createdBy } = req.body;
 
     const group = await Group.create({
       groupName,
