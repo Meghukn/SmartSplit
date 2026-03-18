@@ -1,36 +1,32 @@
 const mongoose = require("mongoose");
 
-const expenseSchema = new mongoose.Schema(
-{
-  description: {
-    type: String,
-    required: true
+const expenseSchema = new mongoose.Schema({
+  description:{
+    type:String,
+    required:true
   },
-
-  amount: {
-    type: Number,
-    required: true
+  amount:{
+    type:Number,
+    required:true
   },
-
-  paidBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User"
+  paidBy:{
+    type:mongoose.Schema.Types.ObjectId,
+    ref:"User",
+    required:true
   },
-
-  group: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Group"
-  },
-
-  splitBetween: [
+  splitBetween:[
     {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
+      type:mongoose.Schema.Types.ObjectId,
+      ref:"User"
     }
-  ]
-
-},
-{ timestamps: true }
-);
+  ],
+  groupId:{
+    type:mongoose.Schema.Types.ObjectId,
+    ref:"Group",
+    required:true
+  }
+},{
+  timestamps:true
+});
 
 module.exports = mongoose.model("Expense", expenseSchema);
