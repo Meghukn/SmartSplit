@@ -161,3 +161,115 @@ exports.getExpenseDetails = async(req,res)=>{
   res.status(500).json({message:err.message});
  }
 };
+
+exports.settleExpenses = async(req,res)=>{
+ try{
+
+  const groupId = req.params.groupId;
+
+  const expenses = await Expense.find({groupId});
+
+  let paid = {};
+  let shouldPay = {};
+
+  // ✅ STEP 1: Calculate paid & shouldPay
+  expenses.forEach(exp => {
+
+   const share = exp.amount / exp.splitBetween.length;
+
+   // paid
+   if(!paid[exp.paidBy]){
+    paid[exp.paidBy] = 0;
+   }
+   paid[exp.paidBy] += exp.amount;
+
+   // should pay
+   exp.splitBetween.forEach(user => {
+
+    if(!shouldPay[user]){
+     shouldPay[user] = 0;
+    }
+
+    shouldPay[user] += share;
+
+   });
+
+  });
+
+  // ✅ STEP 2: Calculate balance
+  let balance = {};
+  let summary = [];
+
+  const users = new Set([
+   ...Object.keys(paid),
+   ...Object.keys(shouldPay)
+  ]);
+
+  users.forEach(user => {
+
+   const totalPaid = paid[user] || 0;
+   const totalShould = shouldPay[user] || 0;
+
+   const net = totalPaid - totalShould;
+
+   balance[user] = net;
+
+   summary.push({
+    user,
+    paid: totalPaid,
+    shouldPay: totalShould,
+    balance: net
+   });
+
+  });
+
+  // ✅ STEP 3: Separate creditors & debtors
+  let creditors = [];
+  let debtors = [];
+
+  for(let user in balance){
+
+   if(balance[user] > 0){
+    creditors.push({user, amount: balance[user]});
+   }
+   else if(balance[user] < 0){
+    debtors.push({user, amount: -balance[user]});
+   }
+
+  }
+
+  // ✅ STEP 4: Simplify transactions
+  let result = [];
+
+  let i = 0, j = 0;
+
+  while(i < debtors.length && j < creditors.length){
+
+   let debt = debtors[i];
+   let credit = creditors[j];
+
+   let settledAmount = Math.min(debt.amount, credit.amount);
+
+   result.push({
+    from: debt.user,
+    to: credit.user,
+    amount: settledAmount
+   });
+
+   debt.amount -= settledAmount;
+   credit.amount -= settledAmount;
+
+   if(debt.amount === 0) i++;
+   if(credit.amount === 0) j++;
+  }
+
+  // ✅ FINAL RESPONSE (UPDATED)
+  res.json({
+   summary,
+   settlements: result
+  });
+
+ }catch(err){
+  res.status(500).json({message:err.message});
+ }
+};

@@ -1,30 +1,43 @@
 const Group = require("../models/Group");
 const User = require("../models/User");
+const Expense = require("../models/Expense");
 
 exports.createGroup = async(req,res)=>{
-
  try{
 
-  const {groupName} = req.body;
+  const { groupName, members } = req.body;
+
+  // creator
+  const creatorId = req.user;
+
+  let memberIds = [];
+
+  // find users from emails
+  if(members && members.length > 0){
+
+   const users = await User.find({
+    email: { $in: members }
+   });
+
+   memberIds = users.map(u => u._id);
+  }
+
+  // add creator if not already
+  if(!memberIds.includes(creatorId)){
+   memberIds.push(creatorId);
+  }
 
   const group = await Group.create({
-
    groupName,
-
-   createdBy:req.user,
-
-   members:[req.user]
-
+   createdBy: creatorId,
+   members: memberIds
   });
 
   res.json(group);
 
  }catch(err){
-
   res.status(500).json({message:err.message});
-
  }
-
 };
 
 
@@ -83,24 +96,37 @@ exports.addMember = async(req,res)=>{
 
 
 
-exports.getMyGroups = async(req,res)=>{
+exports.getMyGroups = async (req, res) => {
+  try {
+    const groups = await Group.find({
+      members: req.user,
+    })
+      .populate("createdBy", "name")
+      .sort({ createdAt: -1 });
 
- try{
+    // 🔥 ADD TOTAL CALCULATION
+    const groupsWithTotals = await Promise.all(
+      groups.map(async (group) => {
+        const expenses = await Expense.find({
+          groupId: group._id,
+        });
 
-  const groups = await Group.find({
-  members:req.user
-  })
-  .populate("createdBy","name")
-  .sort({createdAt:-1});
+        const totalAmount = expenses.reduce(
+          (sum, e) => sum + e.amount,
+          0
+        );
 
-  res.json(groups);
+        return {
+          ...group._doc,
+          totalAmount,
+        };
+      })
+    );
 
- }catch(err){
-
-  res.status(500).json({message:err.message});
-
- }
-
+    res.json(groupsWithTotals);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
 
 exports.deleteGroup = async (req,res)=>{
