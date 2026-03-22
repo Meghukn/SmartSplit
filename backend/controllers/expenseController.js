@@ -1,275 +1,248 @@
 const Expense = require("../models/Expense");
 const Group = require("../models/Group");
 
-exports.addExpense = async(req,res)=>{
- try{
+// ADD EXPENSE
+exports.addExpense = async (req, res) => {
+  try {
+    const { description, amount, paidBy, splitBetween, groupId } = req.body;
 
-  const {description,amount,paidBy,splitBetween,groupId} = req.body;
-
-  // required fields
-  if(!description || !paidBy || !splitBetween || splitBetween.length === 0){
-   return res.status(400).json({message:"All fields are required"});
-  }
-
-  // amount validation
-  if(!amount || amount <= 0){
-   return res.status(400).json({
-    message:"Amount must be greater than 0"
-   });
-  }
-
-  // ✅ FETCH GROUP
-  const group = await Group.findById(groupId);
-
-  if(!group){
-   return res.status(404).json({message:"Group not found"});
-  }
-
-  // ✅ CHECK IF ALL USERS BELONG TO GROUP
-  const groupMemberIds = group.members.map(m => m.toString());
-
-  const invalidUsers = splitBetween.filter(
-   userId => !groupMemberIds.includes(userId)
-  );
-
-  if(invalidUsers.length > 0){
-   return res.status(400).json({
-    message:"Some selected members are not part of this group"
-   });
-  }
-
-  // ✅ ALSO CHECK paidBy is in group
-  if(!groupMemberIds.includes(paidBy)){
-   return res.status(400).json({
-    message:"Payer is not part of this group"
-   });
-  }
-
-  const expense = await Expense.create({
-   description,
-   amount,
-   paidBy,
-   splitBetween,
-   groupId
-  });
-
-  res.status(201).json(expense);
-
- }catch(err){
-  res.status(500).json({message:err.message});
- }
-};
-
-exports.getGroupExpenses = async(req,res)=>{
- try{
-
-  const expenses = await Expense.find({
-   groupId:req.params.groupId
-  })
-  .populate("paidBy","name")
-  .populate("splitBetween","name");
-
-  res.json(expenses);
-
- }catch(err){
-  res.status(500).json({message:err.message});
- }
-};
-
-
-exports.calculateBalances = async(req,res)=>{
- try{
-
-  const groupId = req.params.groupId;
-
-  const expenses = await Expense.find({groupId});
-
-  let balances = {};
-
-  expenses.forEach(exp => {
-
-   const share = exp.amount / exp.splitBetween.length;
-
-   exp.splitBetween.forEach(user => {
-
-    if(user.toString() !== exp.paidBy.toString()){
-
-     const key = `${user}_${exp.paidBy}`;
-
-     if(!balances[key]){
-      balances[key] = 0;
-     }
-
-     balances[key] += share;
-
+    if (!description || !paidBy || !splitBetween || splitBetween.length === 0 || !groupId) {
+      return res.status(400).json({ message: "All fields are required" });
     }
 
-   });
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        message: "Amount must be greater than 0",
+      });
+    }
 
-  });
+    // ✅ Remove duplicate users
+    const uniqueSplit = [...new Set(splitBetween.map(id => id.toString()))];
 
-  res.json(balances);
+    const group = await Group.findById(groupId);
 
- }catch(err){
-  res.status(500).json({message:err.message});
- }
-};
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
 
-exports.getExpenseDetails = async(req,res)=>{
- try{
+    const groupMemberIds = group.members.map(m => m.toString());
 
-  const expenseId = req.params.expenseId;
+    // ✅ Validate split users
+    const invalidUsers = uniqueSplit.filter(
+      userId => !groupMemberIds.includes(userId)
+    );
 
-  const expense = await Expense.findById(expenseId)
-   .populate("paidBy","name")
-   .populate("splitBetween","name");
+    if (invalidUsers.length > 0) {
+      return res.status(400).json({
+        message: "Some selected members are not part of this group",
+      });
+    }
 
-  if(!expense){
-   return res.status(404).json({
-    message:"Expense not found"
-   });
-  }
+    // ✅ Validate payer
+    if (!groupMemberIds.includes(paidBy.toString())) {
+      return res.status(400).json({
+        message: "Payer is not part of this group",
+      });
+    }
 
-  const share = expense.amount / expense.splitBetween.length;
-
-  const breakdown = [];
-
-  expense.splitBetween.forEach(member => {
-
-   if(member._id.toString() !== expense.paidBy._id.toString()){
-
-    breakdown.push({
-     from: member.name,
-     to: expense.paidBy.name,
-     amount: share
+    const expense = await Expense.create({
+      description,
+      amount,
+      paidBy,
+      splitBetween: uniqueSplit,
+      groupId,
     });
 
-   }
-
-  });
-
-  res.json({
-   description: expense.description,
-   amount: expense.amount,
-   paidBy: expense.paidBy.name,
-   splitBetween: expense.splitBetween.map(m=>m.name),
-   groupId: expense.groupId,
-   breakdown
-  });
-
- }catch(err){
-  res.status(500).json({message:err.message});
- }
+    res.status(201).json(expense);
+  } catch (err) {
+    res.status(500).json({ message: "Error adding expense" });
+  }
 };
 
-exports.settleExpenses = async(req,res)=>{
- try{
+// GET GROUP EXPENSES
+exports.getGroupExpenses = async (req, res) => {
+  try {
+    const expenses = await Expense.find({
+      groupId: req.params.groupId,
+    })
+      .populate("paidBy", "name")
+      .populate("splitBetween", "name");
 
-  const groupId = req.params.groupId;
+    res.json(expenses);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching expenses" });
+  }
+};
 
-  const expenses = await Expense.find({groupId});
+// CALCULATE BALANCES
+exports.calculateBalances = async (req, res) => {
+  try {
+    const groupId = req.params.groupId;
 
-  let paid = {};
-  let shouldPay = {};
+    const expenses = await Expense.find({ groupId });
 
-  // ✅ STEP 1: Calculate paid & shouldPay
-  expenses.forEach(exp => {
+    let balances = {};
 
-   const share = exp.amount / exp.splitBetween.length;
+    expenses.forEach((exp) => {
+      const share = parseFloat((exp.amount / exp.splitBetween.length).toFixed(2));
+      const payer = exp.paidBy.toString();
 
-   // paid
-   if(!paid[exp.paidBy]){
-    paid[exp.paidBy] = 0;
-   }
-   paid[exp.paidBy] += exp.amount;
+      exp.splitBetween.forEach((user) => {
+        const userId = user.toString();
 
-   // should pay
-   exp.splitBetween.forEach(user => {
+        if (userId !== payer) {
+          const key = `${userId}_${payer}`;
 
-    if(!shouldPay[user]){
-     shouldPay[user] = 0;
+          if (!balances[key]) {
+            balances[key] = 0;
+          }
+
+          balances[key] += share;
+        }
+      });
+    });
+
+    res.json(balances);
+  } catch (err) {
+    res.status(500).json({ message: "Error calculating balances" });
+  }
+};
+
+// GET EXPENSE DETAILS
+exports.getExpenseDetails = async (req, res) => {
+  try {
+    const expense = await Expense.findById(req.params.expenseId)
+      .populate("paidBy", "name")
+      .populate("splitBetween", "name");
+
+    if (!expense) {
+      return res.status(404).json({
+        message: "Expense not found",
+      });
     }
 
-    shouldPay[user] += share;
+    const share = parseFloat((expense.amount / expense.splitBetween.length).toFixed(2));
 
-   });
+    const breakdown = [];
 
-  });
+    expense.splitBetween.forEach((member) => {
+      if (member._id.toString() !== expense.paidBy._id.toString()) {
+        breakdown.push({
+          from: member.name,
+          to: expense.paidBy.name,
+          amount: share,
+        });
+      }
+    });
 
-  // ✅ STEP 2: Calculate balance
-  let balance = {};
-  let summary = [];
-
-  const users = new Set([
-   ...Object.keys(paid),
-   ...Object.keys(shouldPay)
-  ]);
-
-  users.forEach(user => {
-
-   const totalPaid = paid[user] || 0;
-   const totalShould = shouldPay[user] || 0;
-
-   const net = totalPaid - totalShould;
-
-   balance[user] = net;
-
-   summary.push({
-    user,
-    paid: totalPaid,
-    shouldPay: totalShould,
-    balance: net
-   });
-
-  });
-
-  // ✅ STEP 3: Separate creditors & debtors
-  let creditors = [];
-  let debtors = [];
-
-  for(let user in balance){
-
-   if(balance[user] > 0){
-    creditors.push({user, amount: balance[user]});
-   }
-   else if(balance[user] < 0){
-    debtors.push({user, amount: -balance[user]});
-   }
-
+    res.json({
+      description: expense.description,
+      amount: expense.amount,
+      paidBy: expense.paidBy.name,
+      splitBetween: expense.splitBetween.map((m) => m.name),
+      groupId: expense.groupId,
+      breakdown,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching expense details" });
   }
+};
 
-  // ✅ STEP 4: Simplify transactions
-  let result = [];
+// SETTLE EXPENSES
+exports.settleExpenses = async (req, res) => {
+  try {
+    const groupId = req.params.groupId;
 
-  let i = 0, j = 0;
+    const expenses = await Expense.find({ groupId });
 
-  while(i < debtors.length && j < creditors.length){
+    let paid = {};
+    let shouldPay = {};
 
-   let debt = debtors[i];
-   let credit = creditors[j];
+    expenses.forEach((exp) => {
+      const share = parseFloat((exp.amount / exp.splitBetween.length).toFixed(2));
+      const payer = exp.paidBy.toString();
 
-   let settledAmount = Math.min(debt.amount, credit.amount);
+      // Paid
+      if (!paid[payer]) {
+        paid[payer] = 0;
+      }
+      paid[payer] += exp.amount;
 
-   result.push({
-    from: debt.user,
-    to: credit.user,
-    amount: settledAmount
-   });
+      // Should Pay
+      exp.splitBetween.forEach((user) => {
+        const userId = user.toString();
 
-   debt.amount -= settledAmount;
-   credit.amount -= settledAmount;
+        if (!shouldPay[userId]) {
+          shouldPay[userId] = 0;
+        }
 
-   if(debt.amount === 0) i++;
-   if(credit.amount === 0) j++;
+        shouldPay[userId] += share;
+      });
+    });
+
+    let balance = {};
+    let summary = [];
+
+    const users = new Set([
+      ...Object.keys(paid),
+      ...Object.keys(shouldPay),
+    ]);
+
+    users.forEach((user) => {
+      const totalPaid = paid[user] || 0;
+      const totalShould = shouldPay[user] || 0;
+
+      const net = parseFloat((totalPaid - totalShould).toFixed(2));
+
+      balance[user] = net;
+
+      summary.push({
+        user,
+        paid: totalPaid,
+        shouldPay: totalShould,
+        balance: net,
+      });
+    });
+
+    let creditors = [];
+    let debtors = [];
+
+    for (let user in balance) {
+      if (balance[user] > 0) {
+        creditors.push({ user, amount: balance[user] });
+      } else if (balance[user] < 0) {
+        debtors.push({ user, amount: -balance[user] });
+      }
+    }
+
+    let result = [];
+
+    let i = 0, j = 0;
+
+    while (i < debtors.length && j < creditors.length) {
+      let debt = debtors[i];
+      let credit = creditors[j];
+
+      let settledAmount = Math.min(debt.amount, credit.amount);
+
+      result.push({
+        from: debt.user,
+        to: credit.user,
+        amount: settledAmount,
+      });
+
+      debt.amount -= settledAmount;
+      credit.amount -= settledAmount;
+
+      if (debt.amount === 0) i++;
+      if (credit.amount === 0) j++;
+    }
+
+    res.json({
+      summary,
+      settlements: result,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Error settling expenses" });
   }
-
-  // ✅ FINAL RESPONSE (UPDATED)
-  res.json({
-   summary,
-   settlements: result
-  });
-
- }catch(err){
-  res.status(500).json({message:err.message});
- }
 };

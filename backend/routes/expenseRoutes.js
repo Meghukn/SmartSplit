@@ -1,18 +1,29 @@
 const express = require("express");
 const router = express.Router();
 
+const auth = require("../middleware/authMiddleware");
+
 const {
- addExpense,
- getGroupExpenses,
- calculateBalances,
- getExpenseDetails,
- settleExpenses
+  addExpense,
+  getGroupExpenses,
+  calculateBalances,
+  getExpenseDetails,
+  settleExpenses
 } = require("../controllers/expenseController");
 
-router.post("/add-expense", addExpense);
-router.get("/group/:groupId", getGroupExpenses);
-router.get("/balances/:groupId", calculateBalances);
-router.get("/:expenseId", getExpenseDetails);
-router.get("/settle/:groupId", settleExpenses);
+// Add expense
+router.post("/add-expense", auth, addExpense);
+
+// Get all expenses in a group
+router.get("/group/:groupId", auth, getGroupExpenses);
+
+// Calculate balances
+router.get("/balances/:groupId", auth, calculateBalances);
+
+// Get single expense
+router.get("/:expenseId", auth, getExpenseDetails);
+
+// Settle expenses
+router.get("/settle/:groupId", auth, settleExpenses);
 
 module.exports = router;

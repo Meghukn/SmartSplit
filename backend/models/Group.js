@@ -7,17 +7,17 @@ const groupSchema = new mongoose.Schema({
   required:true
  },
 
- createdBy:{
+createdBy:{
   type:mongoose.Schema.Types.ObjectId,
-  ref:"User"
- },
+  ref:"User",
+  required:true
+},
 
- members:[
-  {
-   type:mongoose.Schema.Types.ObjectId,
-   ref:"User"
-  }
- ]
+members:{
+  type:[mongoose.Schema.Types.ObjectId],
+  ref:"User",
+  required:true
+}
 
 },{timestamps:true});
 

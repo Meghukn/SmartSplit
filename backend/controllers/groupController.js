@@ -2,100 +2,106 @@ const Group = require("../models/Group");
 const User = require("../models/User");
 const Expense = require("../models/Expense");
 
-exports.createGroup = async(req,res)=>{
- try{
+// CREATE GROUP
+exports.createGroup = async (req, res) => {
+  try {
+    const { groupName, members } = req.body;
 
-  const { groupName, members } = req.body;
+    if (!groupName) {
+      return res.status(400).json({ message: "Group name is required" });
+    }
 
-  // creator
-  const creatorId = req.user;
+    const creatorId = req.user;
 
-  let memberIds = [];
+    let memberIds = [];
 
-  // find users from emails
-  if(members && members.length > 0){
+    // Normalize emails + remove duplicates
+    const memberEmails = members?.map(e => e.toLowerCase()) || [];
+    const uniqueEmails = [...new Set(memberEmails)];
 
-   const users = await User.find({
-    email: { $in: members }
-   });
+    if (uniqueEmails.length > 0) {
+      const users = await User.find({
+        email: { $in: uniqueEmails },
+      });
 
-   memberIds = users.map(u => u._id);
+      memberIds = users.map((u) => u._id.toString());
+    }
+
+    // Remove duplicate IDs
+    memberIds = [...new Set(memberIds)];
+
+    // Add creator if not present
+    if (!memberIds.includes(creatorId.toString())) {
+      memberIds.push(creatorId.toString());
+    }
+
+    const group = await Group.create({
+      groupName,
+      createdBy: creatorId,
+      members: memberIds,
+    });
+
+    res.json(group);
+  } catch (err) {
+    res.status(500).json({ message: "Error creating group" });
   }
-
-  // add creator if not already
-  if(!memberIds.includes(creatorId)){
-   memberIds.push(creatorId);
-  }
-
-  const group = await Group.create({
-   groupName,
-   createdBy: creatorId,
-   members: memberIds
-  });
-
-  res.json(group);
-
- }catch(err){
-  res.status(500).json({message:err.message});
- }
 };
 
+// ADD MEMBER
+exports.addMember = async (req, res) => {
+  try {
+    const { groupId, email } = req.body;
 
+    if (!groupId || !email) {
+      return res.status(400).json({ message: "Group ID and email required" });
+    }
 
-exports.addMember = async(req,res)=>{
+    const emailLower = email.toLowerCase();
 
- try{
+    const user = await User.findOne({ email: emailLower });
 
-  const {groupId,email} = req.body;
+    if (!user) {
+      return res.status(404).json({
+        message: "User not registered",
+      });
+    }
 
-  const user = await User.findOne({email});
+    const group = await Group.findById(groupId);
 
-  if(!user){
+    if (!group) {
+      return res.status(404).json({
+        message: "Group not found",
+      });
+    }
 
-   return res.status(404).json({
-    message:"User not registered"
-   });
+    // 🔥 Only creator can add members
+    if (group.createdBy.toString() !== req.user) {
+      return res.status(403).json({
+        message: "Only group creator can add members",
+      });
+    }
 
+    const alreadyMember = group.members.some(
+      (member) => member.toString() === user._id.toString()
+    );
+
+    if (alreadyMember) {
+      return res.status(400).json({
+        message: "User already in group",
+      });
+    }
+
+    group.members.push(user._id);
+
+    await group.save();
+
+    res.json(group);
+  } catch (err) {
+    res.status(500).json({ message: "Error adding member" });
   }
-
-  const group = await Group.findById(groupId);
-
-  if(!group){
-
-   return res.status(404).json({
-    message:"Group not found"
-   });
-
-  }
-
-  const alreadyMember = group.members.some(
-  member => member.toString() === user._id.toString()
-  );
-
-  if(alreadyMember){
-
-  return res.status(400).json({
-    message:"User already in group"
-  });
-
-  }
-
-  group.members.push(user._id);
-
-  await group.save();
-
-  res.json(group);
-
- }catch(err){
-
-  res.status(500).json({message:err.message});
-
- }
-
 };
 
-
-
+// GET MY GROUPS
 exports.getMyGroups = async (req, res) => {
   try {
     const groups = await Group.find({
@@ -104,7 +110,6 @@ exports.getMyGroups = async (req, res) => {
       .populate("createdBy", "name")
       .sort({ createdAt: -1 });
 
-    // 🔥 ADD TOTAL CALCULATION
     const groupsWithTotals = await Promise.all(
       groups.map(async (group) => {
         const expenses = await Expense.find({
@@ -125,47 +130,48 @@ exports.getMyGroups = async (req, res) => {
 
     res.json(groupsWithTotals);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: "Error fetching groups" });
   }
 };
 
-exports.deleteGroup = async (req,res)=>{
+// DELETE GROUP
+exports.deleteGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
 
- try{
+    const group = await Group.findById(groupId);
 
-  const {groupId} = req.params;
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
 
-  const group = await Group.findById(groupId);
+    // 🔥 Only creator can delete
+    if (group.createdBy.toString() !== req.user) {
+      return res.status(403).json({
+        message: "Only creator can delete group",
+      });
+    }
 
-  if(!group){
-   return res.status(404).json({message:"Group not found"});
+    await Group.findByIdAndDelete(groupId);
+
+    res.json({ message: "Group deleted" });
+  } catch (err) {
+    res.status(500).json({ message: "Error deleting group" });
   }
-
-  await Group.findByIdAndDelete(groupId);
-
-  res.json({message:"Group deleted"});
-
- }catch(err){
-  res.status(500).json({message:"Error deleting group"});
- }
-
 };
 
+// GET GROUP DETAILS
+exports.getGroupDetails = async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.groupId)
+      .populate("members", "name email");
 
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
 
-exports.getGroupDetails = async(req,res)=>{
-
- try{
-
-  const group = await Group.findById(req.params.groupId)
-  .populate("members","name email");
-
-  res.json(group);
-
- }catch(err){
-
-  res.status(500).json({message:err.message});
-
- }
-
+    res.json(group);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching group details" });
+  }
 };

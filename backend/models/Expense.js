@@ -6,20 +6,22 @@ const expenseSchema = new mongoose.Schema({
     required:true
   },
   amount:{
-    type:Number,
-    required:true
-  },
+  type:Number,
+  required:true,
+  min:[1,"Amount must be greater than 0"]
+},
   paidBy:{
     type:mongoose.Schema.Types.ObjectId,
     ref:"User",
     required:true
   },
   splitBetween:[
-    {
-      type:mongoose.Schema.Types.ObjectId,
-      ref:"User"
-    }
-  ],
+  {
+    type:mongoose.Schema.Types.ObjectId,
+    ref:"User",
+    required:true
+  }
+],
   groupId:{
     type:mongoose.Schema.Types.ObjectId,
     ref:"Group",
