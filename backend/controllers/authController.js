@@ -58,7 +58,7 @@ exports.loginUser = async (req, res) => {
 
     if (!user) {
       return res.status(400).json({
-        message: "Invalid credentials",
+        message: "User not registered!",
       });
     }
 
@@ -66,7 +66,7 @@ exports.loginUser = async (req, res) => {
 
     if (!match) {
       return res.status(400).json({
-        message: "Invalid credentials",
+        message: "Inncorrect password!!",
       });
     }
 

@@ -148,6 +148,97 @@ exports.getExpenseDetails = async (req, res) => {
   }
 };
 
+// DELETE EXPENSE
+exports.deleteExpense = async (req, res) => {
+  try {
+    const { expenseId } = req.params;
+
+    const expense = await Expense.findById(expenseId);
+
+    if (!expense) {
+      return res.status(404).json({ message: "Expense not found" });
+    }
+
+    await Expense.findByIdAndDelete(expenseId);
+
+    res.json({ message: "Expense deleted" });
+
+  } catch (err) {
+    res.status(500).json({ message: "Error deleting expense" });
+  }
+};
+
+// UPDATE EXPENSE
+exports.updateExpense = async (req, res) => {
+  try {
+    const { expenseId } = req.params;
+    const { description, amount, paidBy, splitBetween } = req.body;
+
+    const expense = await Expense.findById(expenseId);
+
+    if (!expense) {
+      return res.status(404).json({ message: "Expense not found" });
+    }
+
+    const group = await Group.findById(expense.groupId);
+
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    const groupMemberIds = group.members.map(m => m.toString());
+
+    // ✅ Validate splitBetween (if provided)
+    let uniqueSplit = expense.splitBetween;
+
+    if (splitBetween && splitBetween.length > 0) {
+      uniqueSplit = [...new Set(splitBetween.map(id => id.toString()))];
+
+      const invalidUsers = uniqueSplit.filter(
+        userId => !groupMemberIds.includes(userId)
+      );
+
+      if (invalidUsers.length > 0) {
+        return res.status(400).json({
+          message: "Some selected members are not part of this group",
+        });
+      }
+    }
+
+    // ✅ Validate paidBy (if provided)
+    if (paidBy && !groupMemberIds.includes(paidBy.toString())) {
+      return res.status(400).json({
+        message: "Payer is not part of this group",
+      });
+    }
+
+    // ✅ Update fields
+    if (description) expense.description = description;
+
+    if (amount && amount > 0) {
+      expense.amount = amount;
+    }
+
+    if (paidBy) {
+      expense.paidBy = paidBy;
+    }
+
+    if (splitBetween && splitBetween.length > 0) {
+      expense.splitBetween = uniqueSplit;
+    }
+
+    await expense.save();
+
+    res.json({
+      message: "Expense updated successfully",
+      expense
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Error updating expense" });
+  }
+};
+
 // SETTLE EXPENSES
 exports.settleExpenses = async (req, res) => {
   try {
