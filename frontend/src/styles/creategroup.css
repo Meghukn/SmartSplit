@@ -1,0 +1,156 @@
+.create-container{
+ height:100vh;
+ display:flex;
+ flex-direction:column;
+ justify-content:center;
+ align-items:center;
+ background:#f4f6f9;
+ font-family:Arial, sans-serif;
+}
+
+/* HEADER */
+
+.create-header{
+ display:flex;
+ align-items:center;
+ gap:10px;
+ margin-bottom:20px;
+}
+
+.logo-img{
+ width:40px;
+}
+
+.create-header h1{
+ margin:0;
+ color:#0f766e;
+}
+
+/* CARD */
+
+.create-card{
+ width:400px;
+ background:white;
+ padding:30px;
+ border-radius:12px;
+ box-shadow:0 10px 25px rgba(0,0,0,0.1);
+}
+
+.create-card h2{
+ margin:0;
+}
+
+.subtitle{
+ font-size:14px;
+ color:#666;
+ margin-bottom:20px;
+}
+
+/* FORM */
+
+.create-card label{
+ font-size:14px;
+ font-weight:600;
+ margin-top:10px;
+ display:block;
+}
+
+.create-card input{
+ width:100%;
+ padding:10px;
+ margin-top:6px;
+ border:1px solid #ccc;
+ border-radius:8px;
+ margin-bottom:10px;
+}
+
+/* MEMBER INPUT */
+
+.member-input{
+ display:flex;
+ gap:10px;
+}
+
+.member-input input{
+ flex:1;
+}
+
+.member-input button{
+ width:40px;
+ border:none;
+ border-radius:8px;
+ background:#0f766e;
+ color:white;
+ cursor:pointer;
+}
+
+.member-input button:hover{
+ background:#0d5f5a;
+}
+
+/* MEMBER CHIPS */
+
+.member-list{
+ display:flex;
+ flex-wrap:wrap;
+ gap:8px;
+ margin-bottom:10px;
+}
+
+.chip{
+ background:#e0f2fe;
+ padding:6px 10px;
+ border-radius:20px;
+ font-size:13px;
+ display:flex;
+ align-items:center;
+ gap:6px;
+}
+
+.chip span{
+ cursor:pointer;
+ color:red;
+ font-weight:bold;
+}
+
+/* INFO */
+
+.info{
+ font-size:13px;
+ color:#555;
+ margin-bottom:15px;
+}
+
+/* BUTTONS */
+
+.btn-row{
+ display:flex;
+ gap:10px;
+}
+
+.create-btn{
+ background:#0f766e;
+ color:white;
+ border:none;
+ padding:6px 12px;   /* smaller */
+ border-radius:8px;
+ cursor:pointer;
+
+ display:inline-block;   /* 🔥 important */
+ width:fit-content;      /* 🔥 force wrap */
+ white-space:nowrap;     /* 🔥 no stretching */
+ font-size:14px;
+}
+
+.create-btn:hover{
+ background:#0d5f5a;
+}
+
+.cancel-btn{
+ flex:1;
+ padding:10px;
+ background:#ddd;
+ border:none;
+ border-radius:8px;
+ cursor:pointer;
+}
