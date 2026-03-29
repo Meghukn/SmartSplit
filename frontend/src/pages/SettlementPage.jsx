@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import "../styles/settlement.css";
@@ -9,6 +9,7 @@ function SettlementPage() {
 
  const { groupId } = useParams();
  const navigate = useNavigate();
+ const location = useLocation();
 
  const username = localStorage.getItem("username");
 
@@ -34,6 +35,14 @@ function SettlementPage() {
    fetchData();
   }
  }, []);
+
+useEffect(() => {
+ if (location.pathname.includes("summary")) {
+  setActiveTab("summary");
+ } else {
+  setActiveTab("payments");
+ }
+}, [location.pathname]);
 
  const fetchData = async () => {
   try {
@@ -119,6 +128,48 @@ function SettlementPage() {
 
   doc.save(`${group.groupName}_Settlement.pdf`);
  };
+
+const generateShareText = () => {
+ if (!settlements.length) return "All settled 🎉";
+
+ const lines = settlements.map((s) => {
+  const from = getUser(s.from);
+  const to = getUser(s.to);
+
+  const amount = roundedMode
+   ? Math.round(Number(s.amount))
+   : Number(s.amount).toFixed(2);
+
+  return `${from?.name} → ${to?.name} (₹${amount})`;
+ });
+
+ const baseUrl = window.location.origin; // works in localhost + production
+
+ const link = `${baseUrl}/group/${groupId}/summary`;
+
+ return `${lines.join("\n")}
+
+Details:
+${link}`;
+};
+
+// COPY
+const handleCopy = async () => {
+ try {
+  const text = generateShareText();
+  await navigator.clipboard.writeText(text);
+  alert("Settlement copied!");
+ } catch (err) {
+  alert("Failed to copy");
+ }
+};
+
+// WHATSAPP SHARE
+const handleWhatsAppShare = () => {
+ const text = generateShareText();
+ const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+ window.open(url, "_blank");
+};
 
  return (
 
@@ -310,12 +361,21 @@ function SettlementPage() {
 
      <div className="summary-box">
       <h4>Group Summary</h4>
-      <p>Total Members: {group?.members?.length || 0}</p>
+ <p>Total Members: {group?.members?.length || 0}</p>
 
-      <button className="primary-btn download-btn" onClick={downloadPDF}>
-       Download PDF
-      </button>
-     </div>
+ <button className="primary-btn download-btn" onClick={downloadPDF}>
+  Download PDF
+ </button>
+
+ {/* ✅ NEW SHARE BUTTONS */}
+ <button className="primary-btn download-btn" onClick={handleCopy}>
+  Copy to Share
+ </button>
+
+ <button className="secondary-btn download-btn" onClick={handleWhatsAppShare}>
+  Share via WhatsApp
+ </button>
+</div>
 
     </div>
 
