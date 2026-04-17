@@ -20,12 +20,17 @@ function GroupPage() {
  const [paidBy, setPaidBy] = useState("");
  const [splitBetween, setSplitBetween] = useState([]);
 
+  const [manualSplits, setManualSplits] = useState({});
+ const [mode, setMode] = useState("advanced");
+
  const [isEdit, setIsEdit] = useState(false);
  const [deleteId, setDeleteId] = useState(null);
 
  const [modalError, setModalError] = useState("");
  const [memberError, setMemberError] = useState("");
  const [viewExpense, setViewExpense] = useState(null);
+ const [removeMemberId, setRemoveMemberId] = useState(null);
+const [removeMemberName, setRemoveMemberName] = useState("");
 
  // 🔐 Protect page
  useEffect(() => {
@@ -48,6 +53,15 @@ function GroupPage() {
    alert("Error loading group");
   }
  };
+
+ const copyJoinCode = async () => {
+  try {
+    await navigator.clipboard.writeText(group.joinCode);
+    alert("Join code copied!");
+  } catch {
+    alert("Copy failed");
+  }
+};
 
  // FETCH EXPENSES
  const fetchExpenses = async () => {
@@ -77,73 +91,141 @@ function GroupPage() {
   }
  };
 
+ const removeMember = async (memberId) => {
+  try {
+    await API.post("/groups/remove-member", {
+      groupId,
+      memberId
+    });
+
+    fetchGroup();
+
+  } catch (err) {
+    alert(
+      err.response?.data?.message ||
+      "Unable to remove member"
+    );
+  }
+};
+
+
+ // 🧮 Manual total
+ const manualTotal = Object.values(manualSplits)
+  .reduce((sum, val) => sum + Number(val || 0), 0);
+
  // ADD / EDIT EXPENSE
  const addExpense = async () => {
-  if (!description.trim() || !amount || (!isEdit && (!paidBy || splitBetween.length === 0))) {
+
+  if (!description.trim() || !amount || !paidBy) {
    setModalError("Fill all fields");
    return;
+  }
+
+  let payload = {
+   description,
+   totalAmount: Number(amount),
+   paidBy,
+   groupId
+  };
+
+  // ✅ MANUAL
+  if (mode === "manual") {
+   if (manualTotal !== Number(amount)) {
+    setModalError("Split total must match amount");
+    return;
+   }
+
+   payload.splits = Object.entries(manualSplits)
+    .filter(([_, val]) => Number(val) > 0)
+    .map(([user, val]) => ({
+     user,
+     amount: Number(val)
+    }));
+  }
+
+  // ✅ ADVANCED
+  else {
+   if (splitBetween.length === 0) {
+    setModalError("Select members");
+    return;
+   }
+   payload.splitBetween = splitBetween;
   }
 
   try {
 
    if (isEdit) {
-    await API.put(`/expenses/${selectedExpense._id}`, {
-      description,
-      amount: Number(amount),
-      paidBy,
-      splitBetween
-    });
+    await API.put(`/expenses/${selectedExpense._id}`, payload);
    } else {
-    await API.post("/expenses/add-expense", {
-     description,
-     amount: Number(amount),
-     paidBy,
-     splitBetween,
-     groupId
-    });
+    await API.post("/expenses/add-expense", payload);
    }
 
    setShowExpenseModal(false);
    setIsEdit(false);
-   setModalError(""); // ✅ CLEAR ERROR
+   setModalError("");
    setDescription("");
    setAmount("");
    setPaidBy("");
    setSplitBetween([]);
+   setManualSplits({});
    setSelectedExpense(null);
 
    fetchExpenses();
 
   } catch (err) {
-   alert(err.response?.data?.message || "Error saving expense");
+   setModalError(err.response?.data?.message || "Error saving expense");
   }
  };
 
  // DELETE
  const handleDelete = async (id) => {
-  try {
-   await API.delete(`/expenses/${id}`);
-   fetchExpenses();
-  } catch {
-   alert("Error deleting expense"); // ✅ FIXED
-  }
+  await API.delete(`/expenses/${id}`);
+  fetchExpenses();
  };
 
  // EDIT
- const handleEdit = (exp) => {
+const handleEdit = (exp) => {
   setIsEdit(true);
   setSelectedExpense(exp);
 
   setDescription(exp.description);
-  setAmount(exp.amount);
+  setAmount(exp.totalAmount);
   setPaidBy(exp.paidBy._id);
-  setSplitBetween(exp.splitBetween.map(m => m._id));
 
-  setModalError(""); // ✅ RESET ERROR
+  // 🔥 detect if equal split (advanced)
+  const isEqualSplit =
+    exp.splits.every(
+      s => s.amount === exp.splits[0].amount
+    );
+
+  if (isEqualSplit) {
+    // ✅ ADVANCED MODE
+    setMode("advanced");
+
+    // pre-fill checkboxes
+    const users = exp.splits.map(s => s.user._id);
+    setSplitBetween(users);
+
+    // clear manual
+    setManualSplits({});
+  } else {
+    // ✅ MANUAL MODE
+    setMode("manual");
+
+    let temp = {};
+    exp.splits.forEach(s => {
+      temp[s.user._id] = s.amount;
+    });
+    setManualSplits(temp);
+
+    // clear advanced
+    setSplitBetween([]);
+  }
+
+  setModalError("");
   setShowExpenseModal(true);
- };
-
- const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+};
+ const totalAmount = expenses.reduce((sum, e) => sum + (e.totalAmount ?? e.amount ?? 0), 0);
 
  if (!group) return <p>Loading...</p>;
 
@@ -200,7 +282,15 @@ function GroupPage() {
        className="primary-btn small-btn"
        onClick={() => {
         setIsEdit(false);
-        setModalError(""); // ✅ IMPORTANT
+        setModalError("");
+        setDescription("");
+        setAmount("");
+        setPaidBy("");
+        setSplitBetween([]);
+        setManualSplits({});
+        setSelectedExpense(null);
+        setMode("advanced");
+
         setShowExpenseModal(true);
        }}
       >
@@ -233,14 +323,14 @@ function GroupPage() {
        <div className="expense-left">
         <h4>{exp.description}</h4>
         <p>
-         Paid by {exp.paidBy?.name || "Unknown"} • {exp.splitBetween.length} people
+         Paid by {exp.paidBy?.name || "Unknown"} • {exp.splits?.length || exp.splitBetween?.length || 0} people
         </p>
        </div>
 
        <div className="expense-right">
 
         <div className="amount">
-         ₹{Number(exp.amount).toLocaleString("en-IN")}
+         ₹{Number(exp.totalAmount ?? exp.amount ?? 0).toLocaleString("en-IN")}
         </div>
 
         <div className="date">
@@ -286,21 +376,44 @@ function GroupPage() {
 
      <h3>Members</h3>
 
+     {group.createdBy?._id === JSON.parse(atob(localStorage.getItem("token").split(".")[1])).id && (
+  <div className="join-code-box">
+    <span>Join Code: <b>{group.joinCode}</b></span>
+
+    <button onClick={copyJoinCode}>
+      Copy
+    </button>
+  </div>
+)}
+
      <div className="members-list">
       {group.members.map(m => (
-       <div key={m._id} className="member-card">
+  <div key={m._id} className="member-card">
 
-        <div className="member-avatar">
-         {m.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-        </div>
+    <div className="member-avatar">
+      {m.name.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase()}
+    </div>
 
-        <div>
-         <p className="member-name">{m.name}</p>
-         <span className="member-email">{m.email}</span>
-        </div>
+    <div className="member-info">
+      <p className="member-name">{m.name}</p>
+      <span className="member-email">{m.email}</span>
+    </div>
 
-       </div>
-      ))}
+    {group.createdBy?._id === JSON.parse(atob(localStorage.getItem("token").split(".")[1])).id &&
+      m._id !== group.createdBy?._id && (
+      <button
+        className="remove-member-btn"
+        onClick={() => {
+  setRemoveMemberId(m._id);
+  setRemoveMemberName(m.name);
+}}
+      >
+        ✖
+      </button>
+    )}
+
+  </div>
+))}
      </div>
 
      <div className="add-member-box">
@@ -325,6 +438,41 @@ function GroupPage() {
     </div>
 
    </div>
+
+   {removeMemberId && (
+  <div className="modal-overlay">
+    <div className="modal-box">
+
+      <h3>Remove Member</h3>
+
+      <p>
+        Do you want to remove <b>{removeMemberName}</b> from this group?
+      </p>
+
+      <button
+        className="delete-btn"
+        onClick={async () => {
+          await removeMember(removeMemberId);
+          setRemoveMemberId(null);
+          setRemoveMemberName("");
+        }}
+      >
+        Remove
+      </button>
+
+      <button
+        className="secondary-btn"
+        onClick={() => {
+          setRemoveMemberId(null);
+          setRemoveMemberName("");
+        }}
+      >
+        Cancel
+      </button>
+
+    </div>
+  </div>
+)}
 
    {/* DELETE MODAL */}
    {deleteId && (
@@ -376,7 +524,7 @@ function GroupPage() {
 
       <div className="amount-box">
         <p>Total</p>
-        <h2>₹{Number(viewExpense.amount).toLocaleString("en-IN")}</h2>
+        <h2>₹{Number(viewExpense.totalAmount ?? viewExpense.amount ?? 0).toLocaleString("en-IN")}</h2>
 
         {/* ✅ FIXED PAID BY */}
         <span>
@@ -384,22 +532,34 @@ function GroupPage() {
         </span>
       </div>
 
-      {viewExpense.splitBetween.map((m, i) => (
-        <div key={i} className="split-row">
-          <span>{m.name}</span>
-          <span>
-            ₹{Number(
-              viewExpense.amount / viewExpense.splitBetween.length
-            ).toLocaleString("en-IN", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2
-            })}
-          </span>
-        </div>
-      ))}
-
-
+      {viewExpense.splits?.length ? (
+  viewExpense.splits.map((s, i) => (
+    <div key={i} className="split-row">
+      <span>{s.user.name}</span>
+      <span>
+        ₹{Number(s.amount).toLocaleString("en-IN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })}
+      </span>
     </div>
+  ))
+) : (
+  viewExpense.splitBetween?.map((m, i) => (
+    <div key={i} className="split-row">
+      <span>{m.name}</span>
+      <span>
+        ₹{Number(
+          (viewExpense.amount ?? 0) / (viewExpense.splitBetween?.length || 1)
+        ).toLocaleString("en-IN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })}
+      </span>
+    </div>
+  ))
+)}
+</div>
   </div>
 )}
 
@@ -408,6 +568,22 @@ function GroupPage() {
     <div className="modal-box">
 
       <h3>{isEdit ? "Edit Expense" : "Add Expense"}</h3>
+
+      <div className="tabs">
+  <button
+    className={mode === "advanced" ? "active" : ""}
+    onClick={() => setMode("advanced")}
+  >
+    Advanced
+  </button>
+
+  <button
+    className={mode === "manual" ? "active" : ""}
+    onClick={() => setMode("manual")}
+  >
+    Manual
+  </button>
+</div>
 
       <label>Description</label>
       <input
@@ -444,25 +620,58 @@ function GroupPage() {
         ))}
       </select>
 
-      <label>Split Between</label>
+      {/* ✅ MANUAL MODE */}
+{mode === "manual" && (
+  <>
+    <label>Enter Split</label>
 
-      {group.members.map(m => (
-        <label key={m._id} className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={splitBetween.includes(m._id)}
-            onChange={(e) => {
-              if (e.target.checked) {
-                setSplitBetween([...new Set([...splitBetween, m._id])]);
-              } else {
-                setSplitBetween(splitBetween.filter(id => id !== m._id));
-              }
-              setModalError("");
-            }}
-          />
-          {m.name}
-        </label>
-      ))}
+    <div className="split-container">
+  {group.members.map(m => (
+    <div key={m._id} className="split-input-row">
+      <span>{m.name}</span>
+      <input
+        type="number"
+        value={manualSplits[m._id] || ""}
+        onChange={(e) =>
+          setManualSplits({
+            ...manualSplits,
+            [m._id]: e.target.value
+          })
+        }
+      />
+    </div>
+  ))}
+</div>
+
+    <p style={{ color: manualTotal !== Number(amount) ? "red" : "green" }}>
+      {manualTotal} / {amount}
+    </p>
+  </>
+)}
+
+{/* ✅ ADVANCED MODE */}
+{mode === "advanced" && (
+  <>
+    <label>Split Between</label>
+
+    {group.members.map(m => (
+      <label key={m._id} className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={splitBetween.includes(m._id)}
+          onChange={(e) => {
+            if (e.target.checked) {
+              setSplitBetween([...new Set([...splitBetween, m._id])]);
+            } else {
+              setSplitBetween(splitBetween.filter(id => id !== m._id));
+            }
+          }}
+        />
+        {m.name}
+      </label>
+    ))}
+  </>
+)}
 
       {modalError && (
         <p className="error-text">{modalError}</p>
@@ -477,11 +686,14 @@ function GroupPage() {
         onClick={() => {
           setShowExpenseModal(false);
           setIsEdit(false);
-          setModalError("");
           setDescription("");
           setAmount("");
           setPaidBy("");
           setSplitBetween([]);
+          setManualSplits({});
+          setSelectedExpense(null);
+          setModalError("");
+          setMode("advanced");
         }}
       >
         Cancel

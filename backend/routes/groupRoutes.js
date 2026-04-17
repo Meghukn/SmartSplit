@@ -8,11 +8,15 @@ const {
   addMember,
   getMyGroups,
   getGroupDetails,
-  deleteGroup
+  deleteGroup,
+  joinByCode,
+  removeMember
 } = require("../controllers/groupController");
 
 // Create group
 router.post("/create-group", auth, createGroup);
+
+router.post("/join-code", auth, joinByCode);
 
 // Add member
 router.post("/add-member", auth, addMember);
@@ -25,5 +29,7 @@ router.get("/:groupId", auth, getGroupDetails);
 
 // Delete group
 router.delete("/delete/:groupId", auth, deleteGroup);
+
+router.post("/remove-member", auth, removeMember);
 
 module.exports = router;

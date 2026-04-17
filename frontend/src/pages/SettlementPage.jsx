@@ -34,7 +34,7 @@ function SettlementPage() {
   } else {
    fetchData();
   }
- }, []);
+ }, [groupId]);
 
 useEffect(() => {
  if (location.pathname.includes("summary")) {
@@ -62,7 +62,7 @@ useEffect(() => {
  };
 
  const getUser = (id) => {
-  return group?.members?.find((m) => m._id === id);
+  return group?.members?.find((m) => m._id.toString() === id.toString());
  };
 
  const formatINR = (value) => {
@@ -260,7 +260,7 @@ const handleWhatsAppShare = () => {
      {/* PAYMENTS */}
      {activeTab === "payments" &&
       (settlements.length === 0 ? (
-       <p>All settled 🎉</p>
+       <p>No data available</p>
       ) : (
        settlements.map((s, i) => {
 
@@ -270,7 +270,7 @@ const handleWhatsAppShare = () => {
         const amount = Number(s.amount);
         const rounded = Math.round(amount);
 
-        const displayAmount = roundedMode ? rounded : amount;
+      
         
 
         return (
@@ -306,6 +306,9 @@ const handleWhatsAppShare = () => {
 
      {/* SUMMARY */}
      {activeTab === "summary" &&
+  (summary.length === 0 ? (
+    <p>No data available</p>
+  ) : (
       summary.map((s, i) => {
 
        const user = getUser(s.user);
@@ -342,8 +345,11 @@ const handleWhatsAppShare = () => {
          </div>
 
         </div>
-       );
-      })}
+        );
+      }
+
+      ))
+    )}
 
     </div>
 
@@ -363,12 +369,12 @@ const handleWhatsAppShare = () => {
       <h4>Group Summary</h4>
  <p>Total Members: {group?.members?.length || 0}</p>
 
- <button className="primary-btn download-btn" onClick={downloadPDF}>
+ <button className="secondary-btn download-btn" onClick={downloadPDF}>
   Download PDF
  </button>
 
  {/* ✅ NEW SHARE BUTTONS */}
- <button className="primary-btn download-btn" onClick={handleCopy}>
+ <button className="secondary-btn download-btn" onClick={handleCopy}>
   Copy to Share
  </button>
 

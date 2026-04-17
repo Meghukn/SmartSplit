@@ -392,3 +392,137 @@
     transform: translateY(0);
   }
 }
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tabs button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: #e5e7eb;
+  cursor: pointer;
+  font-weight: 500;
+  transition: 0.2s ease;
+}
+
+.tabs button:hover {
+  background: #d1d5db;
+}
+
+
+.tabs .active {
+  background: #10b981;
+  color: white;
+}
+.tabs .active:hover {
+  background: #10b981;
+  color: white;
+}
+
+.split-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+  margin-bottom: 10px;
+
+  background: #f9fafb;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.split-input-row span {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+
+  white-space: nowrap;     /* 🔥 keep in one line */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.split-input-row input {
+  width: 120px;            /* 🔥 fixed width */
+  padding: 6px 8px;
+
+  border: 1px solid #ccc;
+  border-radius: 6px;
+
+  text-align: right;       /* 🔥 nicer UX */
+}
+
+.join-code-box{
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+ gap:10px;
+
+ background:#f8fafc;
+ border:1px solid #e5e7eb;
+
+ padding:10px 12px;
+ border-radius:10px;
+
+ margin:12px 0 16px 0;
+ flex-wrap:wrap;
+}
+
+.join-code-box span{
+ font-size:14px;
+ color:#111827;
+}
+
+.join-code-box b{
+ color:#059669;
+ letter-spacing:1px;
+}
+
+.join-code-box button{
+ background:#10b981;
+ color:white;
+ border:none;
+ padding:8px 12px;
+ border-radius:8px;
+ cursor:pointer;
+}
+
+.join-code-box button:hover{
+ background:#059669;
+}
+
+.member-info{
+ flex:1;
+ min-width:0;
+}
+
+.remove-member-btn{
+ background:#fee2e2;
+ color:#dc2626;
+ border:none;
+
+ width:32px;
+ height:32px;
+ border-radius:50%;
+
+ cursor:pointer;
+ font-size:14px;
+ font-weight:bold;
+
+ display:flex;
+ align-items:center;
+ justify-content:center;
+
+ transition:0.2s ease;
+}
+
+.remove-member-btn:hover{
+ background:#dc2626;
+ color:white;
+ transform:scale(1.08);
+}

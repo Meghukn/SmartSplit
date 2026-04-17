@@ -2,6 +2,10 @@ const Group = require("../models/Group");
 const User = require("../models/User");
 const Expense = require("../models/Expense");
 
+const generateJoinCode = () => {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+};
+
 // CREATE GROUP
 exports.createGroup = async (req, res) => {
   try {
@@ -35,11 +39,21 @@ exports.createGroup = async (req, res) => {
       memberIds.push(creatorId.toString());
     }
 
-    const group = await Group.create({
-      groupName,
-      createdBy: creatorId,
-      members: memberIds,
-    });
+    let code;
+let exists = true;
+
+while (exists) {
+  code = generateJoinCode();
+  const found = await Group.findOne({ joinCode: code });
+  if (!found) exists = false;
+}
+
+const group = await Group.create({
+  groupName,
+  createdBy: creatorId,
+  members: memberIds,
+  joinCode: code
+});
 
     res.json(group);
   } catch (err) {
@@ -117,7 +131,7 @@ exports.getMyGroups = async (req, res) => {
         });
 
         const totalAmount = expenses.reduce(
-          (sum, e) => sum + e.amount,
+          (sum, e) => sum + (e.totalAmount ?? e.amount ?? 0),
           0
         );
 
@@ -164,7 +178,8 @@ exports.deleteGroup = async (req, res) => {
 exports.getGroupDetails = async (req, res) => {
   try {
     const group = await Group.findById(req.params.groupId)
-      .populate("members", "name email");
+  .populate("members", "name email")
+  .populate("createdBy", "name email");
 
     if (!group) {
       return res.status(404).json({ message: "Group not found" });
@@ -173,5 +188,89 @@ exports.getGroupDetails = async (req, res) => {
     res.json(group);
   } catch (err) {
     res.status(500).json({ message: "Error fetching group details" });
+  }
+};
+
+exports.joinByCode = async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ message: "Code required" });
+    }
+
+    const group = await Group.findOne({
+      joinCode: code.toUpperCase()
+    });
+
+    if (!group) {
+      return res.status(404).json({
+        message: "Invalid join code"
+      });
+    }
+
+    const alreadyMember = group.members.some(
+      m => m.toString() === req.user
+    );
+
+    if (alreadyMember) {
+      return res.status(400).json({
+        message: "Already joined"
+      });
+    }
+
+    group.members.push(req.user);
+    await group.save();
+
+    res.json({
+      message: "Joined successfully",
+      groupId: group._id
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      message: "Error joining group"
+    });
+  }
+};
+
+exports.removeMember = async (req, res) => {
+  try {
+    const { groupId, memberId } = req.body;
+
+    const group = await Group.findById(groupId);
+
+    if (!group) {
+      return res.status(404).json({
+        message: "Group not found"
+      });
+    }
+
+    if (group.createdBy.toString() !== req.user) {
+      return res.status(403).json({
+        message: "Only creator can remove members"
+      });
+    }
+
+    if (group.createdBy.toString() === memberId) {
+      return res.status(400).json({
+        message: "Creator cannot be removed"
+      });
+    }
+
+    group.members = group.members.filter(
+      m => m.toString() !== memberId
+    );
+
+    await group.save();
+
+    res.json({
+      message: "Member removed"
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      message: "Error removing member"
+    });
   }
 };

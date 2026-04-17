@@ -16,6 +16,9 @@ function Dashboard() {
  const [deleteGroupName,setDeleteGroupName] = useState("");
  const [error,setError] = useState("");
  const [deleteError,setDeleteError] = useState("");
+ const [joinCode, setJoinCode] = useState("");
+const [joinError, setJoinError] = useState("");
+const [joinLoading, setJoinLoading] = useState(false);
 
  const logout = ()=>{
   localStorage.removeItem("token");
@@ -78,6 +81,33 @@ const createGroup = async()=>{
   setLoading(false);
 };
 
+const joinGroup = async () => {
+  setJoinError("");
+
+  if (!joinCode.trim()) {
+    setJoinError("Enter join code");
+    return;
+  }
+
+  try {
+    setJoinLoading(true);
+
+    await API.post("/groups/join-code", {
+      code: joinCode
+    });
+
+    setJoinCode("");
+    fetchGroups();
+
+  } catch (err) {
+    setJoinError(
+      err.response?.data?.message || "Unable to join group"
+    );
+  }
+
+  setJoinLoading(false);
+};
+
  return(
 
  <div className="dashboard-container">
@@ -109,6 +139,22 @@ const createGroup = async()=>{
 
   {/* GROUP HEADER */}
   <div className="groups-header">
+
+    <div className="join-box">
+  <input
+    placeholder="Enter Join Code"
+    value={joinCode}
+    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+  />
+
+  <button onClick={joinGroup}>
+    {joinLoading ? "Joining..." : "Join"}
+  </button>
+
+  {joinError && (
+    <p className="error">{joinError}</p>
+  )}
+</div>
 
    <div>
     <h2>Your Groups</h2>
@@ -146,15 +192,15 @@ const createGroup = async()=>{
 
       {group.createdBy?._id === JSON.parse(atob(localStorage.getItem("token").split(".")[1])).id && (
       <div
-  className="delete-icon"
-  onClick={(e) => {
-    e.stopPropagation();
-    setDeleteGroupId(group._id);
-    setDeleteGroupName(group.groupName);
-  }}
->
-  <i className="fi fi-sr-trash"></i>
-</div>
+      className="delete-icon"
+      onClick={(e)=>{
+        e.stopPropagation();
+        setDeleteGroupId(group._id);
+        setDeleteGroupName(group.groupName);
+      }}
+      >
+        🗑
+      </div>
 )}
 
       <div className="group-icon-box">👥</div>
@@ -162,7 +208,7 @@ const createGroup = async()=>{
       <h3 className="group-name">{group.groupName}</h3>
 
       <p className="group-amount">
-       ₹ {Number(group.totalAmount || 0).toLocaleString("en-IN")}
+       ₹ {Number(group.totalAmount ?? group.total ?? 0).toLocaleString("en-IN")}
       </p>
 
       <div className="members-badge">

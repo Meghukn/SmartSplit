@@ -308,7 +308,12 @@
 
 .secondary-btn{
   background:#e5e7eb;
+  color:#000;
   border:none;
+}
+
+.secondary-btn:hover{
+  background:#4fc5a0;
 }
 
 /* DOWNLOAD BUTTON */
@@ -408,3 +413,4 @@
 .toggle-icon:hover {
   transform: scale(1.1);
 }
+

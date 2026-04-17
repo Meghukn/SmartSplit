@@ -1,23 +1,21 @@
 const Expense = require("../models/Expense");
 const Group = require("../models/Group");
+const mongoose = require("mongoose");
 
 // ADD EXPENSE
 exports.addExpense = async (req, res) => {
   try {
-    const { description, amount, paidBy, splitBetween, groupId } = req.body;
+    const { description, totalAmount, paidBy, splitBetween, splits, groupId } = req.body;
 
-    if (!description || !paidBy || !splitBetween || splitBetween.length === 0 || !groupId) {
+    if (!description || !paidBy || !groupId) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    if (!amount || amount <= 0) {
+    if (!totalAmount || totalAmount <= 0) {
       return res.status(400).json({
         message: "Amount must be greater than 0",
       });
     }
-
-    // ✅ Remove duplicate users
-    const uniqueSplit = [...new Set(splitBetween.map(id => id.toString()))];
 
     const group = await Group.findById(groupId);
 
@@ -27,37 +25,87 @@ exports.addExpense = async (req, res) => {
 
     const groupMemberIds = group.members.map(m => m.toString());
 
-    // ✅ Validate split users
-    const invalidUsers = uniqueSplit.filter(
-      userId => !groupMemberIds.includes(userId)
-    );
-
-    if (invalidUsers.length > 0) {
-      return res.status(400).json({
-        message: "Some selected members are not part of this group",
-      });
-    }
-
-    // ✅ Validate payer
     if (!groupMemberIds.includes(paidBy.toString())) {
       return res.status(400).json({
         message: "Payer is not part of this group",
       });
     }
 
+    let finalSplits = [];
+
+    // ✅ MANUAL MODE
+    if (splits && splits.length > 0) {
+      const total = splits.reduce((sum, s) => sum + Number(s.amount), 0);
+
+      if (parseFloat(total.toFixed(2)) !== parseFloat(totalAmount.toFixed(2))) {
+        return res.status(400).json({
+          message: "Split amounts must equal total amount"
+        });
+      }
+
+      const usersInSplit = splits.map(s => s.user.toString());
+
+      const invalidUsers = usersInSplit.filter(
+        userId => !groupMemberIds.includes(userId)
+      );
+
+      if (invalidUsers.length > 0) {
+        return res.status(400).json({
+          message: "Some users are not part of this group"
+        });
+      }
+
+      finalSplits = splits.map(s => ({
+  user: mongoose.Types.ObjectId.isValid(s.user)
+    ? new mongoose.Types.ObjectId(s.user)
+    : s.user,
+  amount: Number(s.amount)
+}));
+    }
+
+    // ✅ ADVANCED MODE
+    else if (splitBetween && splitBetween.length > 0) {
+      const uniqueUsers = [...new Set(splitBetween.map(id => id.toString()))];
+
+      const invalidUsers = uniqueUsers.filter(
+        userId => !groupMemberIds.includes(userId)
+      );
+
+      if (invalidUsers.length > 0) {
+        return res.status(400).json({
+          message: "Some selected members are not part of this group"
+        });
+      }
+
+      const splitAmt = parseFloat((totalAmount / uniqueUsers.length).toFixed(2));
+
+      finalSplits = uniqueUsers.map(user => ({
+        user: new mongoose.Types.ObjectId(user),
+        amount: splitAmt
+      }));
+    }
+
+    else {
+      return res.status(400).json({
+        message: "Provide either splits or splitBetween"
+      });
+    }
+
     const expense = await Expense.create({
       description,
-      amount,
+      totalAmount,
       paidBy,
-      splitBetween: uniqueSplit,
+      splits: finalSplits,
       groupId,
     });
 
     res.status(201).json(expense);
+
   } catch (err) {
     res.status(500).json({ message: "Error adding expense" });
   }
 };
+
 
 // GET GROUP EXPENSES
 exports.getGroupExpenses = async (req, res) => {
@@ -66,13 +114,14 @@ exports.getGroupExpenses = async (req, res) => {
       groupId: req.params.groupId,
     })
       .populate("paidBy", "name")
-      .populate("splitBetween", "name");
+      .populate("splits.user", "name");
 
     res.json(expenses);
   } catch (err) {
     res.status(500).json({ message: "Error fetching expenses" });
   }
 };
+
 
 // CALCULATE BALANCES
 exports.calculateBalances = async (req, res) => {
@@ -84,11 +133,10 @@ exports.calculateBalances = async (req, res) => {
     let balances = {};
 
     expenses.forEach((exp) => {
-      const share = parseFloat((exp.amount / exp.splitBetween.length).toFixed(2));
       const payer = exp.paidBy.toString();
 
-      exp.splitBetween.forEach((user) => {
-        const userId = user.toString();
+      exp.splits.forEach((s) => {
+        const userId = s.user.toString();
 
         if (userId !== payer) {
           const key = `${userId}_${payer}`;
@@ -97,7 +145,7 @@ exports.calculateBalances = async (req, res) => {
             balances[key] = 0;
           }
 
-          balances[key] += share;
+          balances[key] += s.amount;
         }
       });
     });
@@ -108,11 +156,13 @@ exports.calculateBalances = async (req, res) => {
   }
 };
 
+
 // GET EXPENSE DETAILS
 exports.getExpenseDetails = async (req, res) => {
   try {
     const expense = await Expense.findById(req.params.expenseId)
       .populate("paidBy", "name")
+      .populate("splits.user", "name")
       .populate("splitBetween", "name");
 
     if (!expense) {
@@ -121,32 +171,31 @@ exports.getExpenseDetails = async (req, res) => {
       });
     }
 
-    const share = parseFloat((expense.amount / expense.splitBetween.length).toFixed(2));
-
     const breakdown = [];
 
-    expense.splitBetween.forEach((member) => {
-      if (member._id.toString() !== expense.paidBy._id.toString()) {
+    expense.splits.forEach((s) => {
+      if (s.user._id.toString() !== expense.paidBy._id.toString()) {
         breakdown.push({
-          from: member.name,
+          from: s.user.name,
           to: expense.paidBy.name,
-          amount: share,
+          amount: s.amount,
         });
       }
     });
 
     res.json({
       description: expense.description,
-      amount: expense.amount,
+      totalAmount: expense.totalAmount,
       paidBy: expense.paidBy.name,
-      splitBetween: expense.splitBetween.map((m) => m.name),
       groupId: expense.groupId,
       breakdown,
     });
+
   } catch (err) {
     res.status(500).json({ message: "Error fetching expense details" });
   }
 };
+
 
 // DELETE EXPENSE
 exports.deleteExpense = async (req, res) => {
@@ -168,11 +217,12 @@ exports.deleteExpense = async (req, res) => {
   }
 };
 
+
 // UPDATE EXPENSE
 exports.updateExpense = async (req, res) => {
   try {
     const { expenseId } = req.params;
-    const { description, amount, paidBy, splitBetween } = req.body;
+    const { description, totalAmount, paidBy, splitBetween, splits } = req.body;
 
     const expense = await Expense.findById(expenseId);
 
@@ -182,50 +232,39 @@ exports.updateExpense = async (req, res) => {
 
     const group = await Group.findById(expense.groupId);
 
-    if (!group) {
-      return res.status(404).json({ message: "Group not found" });
-    }
-
     const groupMemberIds = group.members.map(m => m.toString());
 
-    // ✅ Validate splitBetween (if provided)
-    let uniqueSplit = expense.splitBetween;
+    let finalSplits = expense.splits;
 
-    if (splitBetween && splitBetween.length > 0) {
-      uniqueSplit = [...new Set(splitBetween.map(id => id.toString()))];
+    if (splits && splits.length > 0) {
+      const total = splits.reduce((sum, s) => sum + Number(s.amount), 0);
 
-      const invalidUsers = uniqueSplit.filter(
-        userId => !groupMemberIds.includes(userId)
-      );
-
-      if (invalidUsers.length > 0) {
+      if (parseFloat(total.toFixed(2)) !== parseFloat(totalAmount.toFixed(2))) {
         return res.status(400).json({
-          message: "Some selected members are not part of this group",
+          message: "Split mismatch"
         });
       }
+
+      finalSplits = splits.map(s => ({
+  user: new mongoose.Types.ObjectId(s.user),
+  amount: Number(s.amount)
+}));
     }
 
-    // ✅ Validate paidBy (if provided)
-    if (paidBy && !groupMemberIds.includes(paidBy.toString())) {
-      return res.status(400).json({
-        message: "Payer is not part of this group",
-      });
+    else if (splitBetween && splitBetween.length > 0) {
+      const splitAmt = totalAmount / splitBetween.length;
+
+      finalSplits = splitBetween.map(user => ({
+        user: new mongoose.Types.ObjectId(user),
+        amount: splitAmt
+      }));
     }
 
-    // ✅ Update fields
     if (description) expense.description = description;
+    if (totalAmount) expense.totalAmount = totalAmount;
+    if (paidBy) expense.paidBy = paidBy;
 
-    if (amount && amount > 0) {
-      expense.amount = amount;
-    }
-
-    if (paidBy) {
-      expense.paidBy = paidBy;
-    }
-
-    if (splitBetween && splitBetween.length > 0) {
-      expense.splitBetween = uniqueSplit;
-    }
+    expense.splits = finalSplits;
 
     await expense.save();
 
@@ -239,6 +278,7 @@ exports.updateExpense = async (req, res) => {
   }
 };
 
+
 // SETTLE EXPENSES
 exports.settleExpenses = async (req, res) => {
   try {
@@ -250,24 +290,13 @@ exports.settleExpenses = async (req, res) => {
     let shouldPay = {};
 
     expenses.forEach((exp) => {
-      const share = parseFloat((exp.amount / exp.splitBetween.length).toFixed(2));
       const payer = exp.paidBy.toString();
 
-      // Paid
-      if (!paid[payer]) {
-        paid[payer] = 0;
-      }
-      paid[payer] += exp.amount;
+      paid[payer] = (paid[payer] || 0) + exp.totalAmount;
 
-      // Should Pay
-      exp.splitBetween.forEach((user) => {
-        const userId = user.toString();
-
-        if (!shouldPay[userId]) {
-          shouldPay[userId] = 0;
-        }
-
-        shouldPay[userId] += share;
+      exp.splits.forEach((s) => {
+        const user = s.user.toString();
+        shouldPay[user] = (shouldPay[user] || 0) + s.amount;
       });
     });
 
@@ -280,60 +309,136 @@ exports.settleExpenses = async (req, res) => {
     ]);
 
     users.forEach((user) => {
-      const totalPaid = paid[user] || 0;
-      const totalShould = shouldPay[user] || 0;
-
-      const net = parseFloat((totalPaid - totalShould).toFixed(2));
+      const net = Number(
+        ((paid[user] || 0) - (shouldPay[user] || 0)).toFixed(2)
+      );
 
       balance[user] = net;
 
       summary.push({
         user,
-        paid: totalPaid,
-        shouldPay: totalShould,
+        paid: paid[user] || 0,
+        shouldPay: shouldPay[user] || 0,
         balance: net,
       });
     });
 
-    let creditors = [];
-    let debtors = [];
+    let persons = [];
 
     for (let user in balance) {
-      if (balance[user] > 0) {
-        creditors.push({ user, amount: balance[user] });
-      } else if (balance[user] < 0) {
-        debtors.push({ user, amount: -balance[user] });
+      if (Math.abs(balance[user]) > 0.01) {
+        persons.push({
+          user,
+          amount: balance[user]
+        });
       }
     }
 
-    let result = [];
+    let settlements = [];
 
-    let i = 0, j = 0;
+    // -------- SMALL GROUP = EXACT OPTIMAL --------
+    if (persons.length <= 12) {
 
-    while (i < debtors.length && j < creditors.length) {
-      let debt = debtors[i];
-      let credit = creditors[j];
+      const arr = persons.map(p => ({ ...p }));
+      let best = null;
 
-      let settledAmount = Math.min(debt.amount, credit.amount);
+      const dfs = (start, path) => {
+        while (
+          start < arr.length &&
+          Math.abs(arr[start].amount) < 0.01
+        ) start++;
 
-      result.push({
-        from: debt.user,
-        to: credit.user,
-        amount: settledAmount,
+        if (start === arr.length) {
+          if (!best || path.length < best.length) {
+            best = [...path];
+          }
+          return;
+        }
+
+        if (best && path.length >= best.length) return;
+
+        for (let i = start + 1; i < arr.length; i++) {
+          if (arr[start].amount * arr[i].amount < 0) {
+
+            const a = arr[start].amount;
+            const b = arr[i].amount;
+
+            const settleAmt = Math.min(
+              Math.abs(a),
+              Math.abs(b)
+            );
+
+            arr[i].amount = Number((b + a).toFixed(2));
+            arr[start].amount = 0;
+
+            path.push({
+              from: a < 0 ? arr[start].user : arr[i].user,
+              to: a > 0 ? arr[start].user : arr[i].user,
+              amount: settleAmt
+            });
+
+            dfs(start + 1, path);
+
+            path.pop();
+            arr[start].amount = a;
+            arr[i].amount = b;
+          }
+        }
+      };
+
+      dfs(0, []);
+      settlements = best || [];
+    }
+
+    // -------- LARGE GROUP = GREEDY FAST --------
+    else {
+      let creditors = [];
+      let debtors = [];
+
+      persons.forEach((p) => {
+        if (p.amount > 0)
+          creditors.push({
+            user: p.user,
+            amount: p.amount
+          });
+        else
+          debtors.push({
+            user: p.user,
+            amount: -p.amount
+          });
       });
 
-      debt.amount -= settledAmount;
-      credit.amount -= settledAmount;
+      let i = 0, j = 0;
 
-      if (debt.amount === 0) i++;
-      if (credit.amount === 0) j++;
+      while (i < debtors.length && j < creditors.length) {
+        let amt = Math.min(
+          debtors[i].amount,
+          creditors[j].amount
+        );
+
+        settlements.push({
+          from: debtors[i].user,
+          to: creditors[j].user,
+          amount: Number(amt.toFixed(2))
+        });
+
+        debtors[i].amount -= amt;
+        creditors[j].amount -= amt;
+
+        if (debtors[i].amount < 0.01) i++;
+        if (creditors[j].amount < 0.01) j++;
+      }
     }
 
     res.json({
       summary,
-      settlements: result,
+      settlements
     });
+
   } catch (err) {
-    res.status(500).json({ message: "Error settling expenses" });
+    res.status(500).json({
+      message: "Error settling expenses"
+    });
   }
 };
+
