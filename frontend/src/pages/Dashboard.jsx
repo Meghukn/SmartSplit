@@ -5,287 +5,282 @@ import API from "../services/api";
 
 function Dashboard() {
 
- const navigate = useNavigate();
- const username = localStorage.getItem("username");
+  const navigate = useNavigate();
+  const username = localStorage.getItem("username");
+  const [groups,setGroups] = useState([]);
+  const [showModal,setShowModal] = useState(false);
+  const [groupName,setGroupName] = useState("");
+  const [loading,setLoading] = useState(false);
+  const [deleteGroupId,setDeleteGroupId] = useState(null);
+  const [deleteGroupName,setDeleteGroupName] = useState("");
+  const [error,setError] = useState("");
+  const [deleteError,setDeleteError] = useState("");
+  const [joinCode, setJoinCode] = useState("");
+  const [joinError, setJoinError] = useState("");
+  const [joinLoading, setJoinLoading] = useState(false);
 
- const [groups,setGroups] = useState([]);
- const [showModal,setShowModal] = useState(false);
- const [groupName,setGroupName] = useState("");
- const [loading,setLoading] = useState(false);
- const [deleteGroupId,setDeleteGroupId] = useState(null);
- const [deleteGroupName,setDeleteGroupName] = useState("");
- const [error,setError] = useState("");
- const [deleteError,setDeleteError] = useState("");
- const [joinCode, setJoinCode] = useState("");
-const [joinError, setJoinError] = useState("");
-const [joinLoading, setJoinLoading] = useState(false);
+  const logout = ()=>{
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    navigate("/");
+  };
 
- const logout = ()=>{
-  localStorage.removeItem("token");
-  localStorage.removeItem("username");
-  navigate("/");
- };
-
-const fetchGroups = async()=>{
- try{
-
-  const res = await API.get("/groups/my-groups");
-
-  setGroups(res.data);
-
- }catch{
-  console.log("Error loading groups");
- }
-};
-
- useEffect(()=>{
-  fetchGroups();
- },[]);
-
- // DELETE GROUP
-const deleteGroup = async()=>{
- try{
-  await API.delete(`/groups/delete/${deleteGroupId}`);
-  setDeleteGroupId(null);
-  fetchGroups();
- }catch(err){
-  setDeleteError(err.response?.data?.message || "Delete failed");
- }
-};
-
-
- // CREATE GROUP
-const createGroup = async()=>{
-  setError("");
-
-  if(!groupName.trim()){
-    setError("Group name is required");
-    return;
-  }
-
+  const fetchGroups = async()=>{
   try{
-    setLoading(true);
 
-    const res = await API.post("/groups/create-group",{ groupName });
+    const res = await API.get("/groups/my-groups");
+    setGroups(res.data);
 
-    setShowModal(false);
-    setGroupName("");
+    }catch{
+      console.log("Error loading groups");
+    }
+  };
 
+  useEffect(()=>{
     fetchGroups();
-    navigate(`/group/${res.data._id}`);
+  },[]);
 
-  }catch(err){
-    setError(err.response?.data?.message || "Error creating group");
-  }
+  // DELETE GROUP
+  const deleteGroup = async()=>{
+    try{
+      await API.delete(`/groups/delete/${deleteGroupId}`);
+      setDeleteGroupId(null);
+      fetchGroups();
+    }catch(err){
+      setDeleteError(err.response?.data?.message || "Delete failed");
+    }
+  };
 
-  setLoading(false);
-};
 
-const joinGroup = async () => {
-  setJoinError("");
+// CREATE GROUP
+  const createGroup = async()=>{
+    setError("");
 
-  if (!joinCode.trim()) {
-    setJoinError("Enter join code");
-    return;
-  }
+    if(!groupName.trim()){
+      setError("Group name is required");
+      return;
+    }
 
-  try {
-    setJoinLoading(true);
+    try{
+      setLoading(true);
 
-    await API.post("/groups/join-code", {
-      code: joinCode
-    });
+      const res = await API.post("/groups/create-group",{ groupName });
 
-    setJoinCode("");
-    fetchGroups();
+      setShowModal(false);
+      setGroupName("");
 
-  } catch (err) {
-    setJoinError(
-      err.response?.data?.message || "Unable to join group"
-    );
-  }
+      fetchGroups();
+      navigate(`/group/${res.data._id}`);
 
-  setJoinLoading(false);
-};
+    }catch(err){
+      setError(err.response?.data?.message || "Error creating group");
+    }
 
- return(
+    setLoading(false);
+  };
 
- <div className="dashboard-container">
+  const joinGroup = async () => {
+    setJoinError("");
 
-  {/* HEADER */}
-  <div className="dashboard-header">
+    if (!joinCode.trim()) {
+      setJoinError("Enter join code");
+      return;
+    }
 
-   <div className="brand-top">
-    <img src="/logo.png" alt="logo" className="logo-img" />
-    <h1 className="logo">SmartSplit</h1>
-   </div>
+    try {
+      setJoinLoading(true);
 
-   <div className="header-right">
+      await API.post("/groups/join-code", {
+        code: joinCode
+      });
 
-    <div className="user-box">
-     <span className="avatar">
-      {username?.charAt(0).toUpperCase()}
-     </span>
-     <span>{username}</span>
-    </div>
+      setJoinCode("");
+      fetchGroups();
 
-    <button className="logout-btn" onClick={logout}>
-     <i className="fa fa-sign-out"></i>
-    </button>
+    } catch (err) {
+      setJoinError(
+        err.response?.data?.message || "Unable to join group"
+      );
+    }
 
-   </div>
+    setJoinLoading(false);
+  };
 
-  </div>
+  return(
 
-  {/* GROUP HEADER */}
-  <div className="groups-header">
+    <div className="dashboard-container">
 
-    <div className="join-box">
-  <input
-    placeholder="Enter Join Code"
-    value={joinCode}
-    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-  />
+    {/* HEADER */}
+    <div className="dashboard-header">
 
-  <button onClick={joinGroup}>
-    {joinLoading ? "Joining..." : "Join"}
-  </button>
-
-  {joinError && (
-    <p className="error">{joinError}</p>
-  )}
-</div>
-
-   <div>
-    <h2>Your Groups</h2>
-    <p className="sub-text">
-     Manage your shared expenses
-    </p>
-   </div>
-
-   <button
-    className="create-btn"
-    onClick={()=>{
-      setShowModal(true);
-      setError("");   // ✅ reset error on open
-    }}   >
-    + New Group
-   </button>
-
-  </div>
-
-  {/* GROUP LIST */}
-  <div className="groups-box">
-
-   {groups.length === 0 ?(
-    <p className="no-groups">No groups yet</p>
-   ):(
-    groups.map((group)=>(
-     <div
-      key={group._id}
-      className="group-card"
-      onClick={()=>navigate(`/group/${group._id}`)}
-     >
-      <p className="created-by">
-  Created by {group.createdBy?.name || "Unknown"}
-</p>
-
-      {group.createdBy?._id === JSON.parse(atob(localStorage.getItem("token").split(".")[1])).id && (
-      <div
-      className="delete-icon"
-      onClick={(e)=>{
-        e.stopPropagation();
-        setDeleteGroupId(group._id);
-        setDeleteGroupName(group.groupName);
-      }}
-      >
-        🗑
-      </div>
-)}
-
-      <div className="group-icon-box">👥</div>
-
-      <h3 className="group-name">{group.groupName}</h3>
-
-      <p className="group-amount">
-       ₹ {Number(group.totalAmount ?? group.total ?? 0).toLocaleString("en-IN")}
-      </p>
-
-      <div className="members-badge">
-       {group.members?.length || 0} MEMBERS
+      <div className="brand-top">
+        <img src="/logo.png" alt="logo" className="logo-img" />
+        <h1 className="logo">SmartSplit</h1>
       </div>
 
-     </div>
-    ))
-   )}
+      <div className="header-right">
 
-  </div>
+      <div className="user-box">
+        <span className="avatar">
+          {username?.charAt(0).toUpperCase()}
+        </span>
+        <span>{username}</span>
+      </div>
 
-  {/* DELETE MODAL */}
-  {deleteGroupId && (
-   <div className="modal-overlay">
-    <div className="modal-box">
-     <h3>Delete Group</h3>
-     <p>Delete <b>{deleteGroupName}</b>?</p>
-
-     <button className="delete-btn" onClick={deleteGroup}>
-      Yes, Delete
-     </button>
-
-     <button className="close-btn" onClick={()=>setDeleteGroupId(null)}>
-      Cancel
-     </button>
-     {deleteError && <p className="error">{deleteError}</p>}
-    </div>
-   </div>
-  )}
-
-  {/* CREATE GROUP MODAL */}
-  {showModal && (
-   <div className="modal-overlay">
-
-    <div className="create-modal">
-
-     <h2>Create Group</h2>
-     <p>Create groups, add your friends and start splitting</p>
-
-     <input
-      placeholder="Group Name"
-      value={groupName}
-      onChange={(e)=>setGroupName(e.target.value)}
-     />
-
-     {error && <p className="error">{error}</p>}
-
-     <p className="info">
-      You will be automatically added
-     </p>
-
-     <div className="btn-row">
-
-      <button className="create-btn" onClick={createGroup}>
-       {loading ? "Creating..." : "Create"}
+      <button className="logout-btn" onClick={logout}>
+        <i className="fa fa-sign-out"></i>
       </button>
+
+      </div>
+
+    </div>
+
+    {/* GROUP HEADER */}
+    <div className="groups-header">
+
+      <div className="join-box">
+        <input
+          placeholder="Enter Join Code"
+          value={joinCode}
+          onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+        />
+
+        <button onClick={joinGroup}>
+          {joinLoading ? "Joining..." : "Join"}
+        </button>
+
+        {joinError && (
+          <p className="error">{joinError}</p>
+        )}
+      </div>
+
+      <div>
+        <h2>Your Groups</h2>
+        <p className="sub-text">
+          Manage your shared expenses
+        </p>
+      </div>
 
       <button
-       className="close-btn"
+        className="create-btn"
         onClick={()=>{
-          setShowModal(false);
-          setError("");        // ✅ clear error
-          setGroupName("");    // ✅ optional reset
+          setShowModal(true);
+          setError("");
         }}>
-       Cancel
+        + New Group
       </button>
-
-     </div>
 
     </div>
 
-   </div>
-  )}
+    {/* GROUP LIST */}
+    <div className="groups-box">
 
- </div>
- );
+      {groups.length === 0 ?(
+        <p className="no-groups">No groups yet</p>
+      ):(
+        groups.map((group)=>(
+        <div
+          key={group._id}
+          className="group-card"
+          onClick={()=>navigate(`/group/${group._id}`)}
+        >
+        <p className="created-by">
+          Created by {group.createdBy?.name || "Unknown"}
+        </p>
+
+        {group.createdBy?._id === JSON.parse(atob(localStorage.getItem("token").split(".")[1])).id && (
+        <div
+          className="delete-icon"
+          onClick={(e)=>{
+          e.stopPropagation();
+          setDeleteGroupId(group._id);
+          setDeleteGroupName(group.groupName);
+        }}>
+          🗑
+        </div>
+        )}
+
+        <div className="group-icon-box">👥</div>
+
+        <h3 className="group-name">{group.groupName}</h3>
+
+        <p className="group-amount">
+          ₹ {Number(group.totalAmount ?? group.total ?? 0).toLocaleString("en-IN")}
+        </p>
+
+        <div className="members-badge">
+          {group.members?.length || 0} MEMBERS
+        </div>
+      </div>
+    )))}
+
+    </div>
+
+    {/* DELETE MODAL */}
+    {deleteGroupId && (
+      <div className="modal-overlay">
+        <div className="modal-box">
+          <h3>Delete Group</h3>
+          <p>Delete <b>{deleteGroupName}</b>?</p>
+
+          <button className="delete-btn" onClick={deleteGroup}>
+            Yes, Delete
+          </button>
+
+          <button className="close-btn" onClick={()=>setDeleteGroupId(null)}>
+            Cancel
+          </button>
+          {deleteError && <p className="error">{deleteError}</p>}
+        </div>
+      </div>
+    )}
+
+    {/* CREATE GROUP MODAL */}
+    {showModal && (
+      <div className="modal-overlay">
+
+        <div className="create-modal">
+
+          <h2>Create Group</h2>
+          <p>Create groups, add your friends and start splitting</p>
+
+          <input
+            placeholder="Group Name"
+            value={groupName}
+            onChange={(e)=>setGroupName(e.target.value)}
+          />
+
+          {error && <p className="error">{error}</p>}
+
+          <p className="info">
+            You will be automatically added
+          </p>
+
+          <div className="btn-row">
+
+          <button className="create-btn" onClick={createGroup}>
+          {loading ? "Creating..." : "Create"}
+          </button>
+
+          <button
+          className="close-btn"
+            onClick={()=>{
+              setShowModal(false);
+              setError(""); 
+              setGroupName("");   
+            }}>
+          Cancel
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+    )}
+
+    </div>
+  );
 }
 
 export default Dashboard;

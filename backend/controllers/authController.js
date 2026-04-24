@@ -2,7 +2,7 @@ const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-// REGISTER
+//Register
 exports.registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -18,7 +18,6 @@ exports.registerUser = async (req, res) => {
     }
 
     const emailLower = email.toLowerCase();
-
     const userExists = await User.findOne({ email: emailLower });
 
     if (userExists) {
@@ -53,7 +52,6 @@ exports.loginUser = async (req, res) => {
     }
 
     const emailLower = email.toLowerCase();
-
     const user = await User.findOne({ email: emailLower });
 
     if (!user) {

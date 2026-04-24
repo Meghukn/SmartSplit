@@ -33,7 +33,7 @@ exports.addExpense = async (req, res) => {
 
     let finalSplits = [];
 
-    // ✅ MANUAL MODE
+    //MANUAL MODE
     if (splits && splits.length > 0) {
       const total = splits.reduce((sum, s) => sum + Number(s.amount), 0);
 
@@ -56,14 +56,14 @@ exports.addExpense = async (req, res) => {
       }
 
       finalSplits = splits.map(s => ({
-  user: mongoose.Types.ObjectId.isValid(s.user)
-    ? new mongoose.Types.ObjectId(s.user)
-    : s.user,
-  amount: Number(s.amount)
-}));
+        user: mongoose.Types.ObjectId.isValid(s.user)
+        ? new mongoose.Types.ObjectId(s.user)
+        : s.user,
+        amount: Number(s.amount)
+      }));
     }
 
-    // ✅ ADVANCED MODE
+    //ADVANCED MODE
     else if (splitBetween && splitBetween.length > 0) {
       const uniqueUsers = [...new Set(splitBetween.map(id => id.toString()))];
 
@@ -84,7 +84,7 @@ exports.addExpense = async (req, res) => {
         amount: splitAmt
       }));
     }
-
+    
     else {
       return res.status(400).json({
         message: "Provide either splits or splitBetween"
@@ -106,15 +106,14 @@ exports.addExpense = async (req, res) => {
   }
 };
 
-
 // GET GROUP EXPENSES
 exports.getGroupExpenses = async (req, res) => {
   try {
     const expenses = await Expense.find({
       groupId: req.params.groupId,
     })
-      .populate("paidBy", "name")
-      .populate("splits.user", "name");
+    .populate("paidBy", "name")
+    .populate("splits.user", "name");
 
     res.json(expenses);
   } catch (err) {
@@ -122,14 +121,11 @@ exports.getGroupExpenses = async (req, res) => {
   }
 };
 
-
 // CALCULATE BALANCES
 exports.calculateBalances = async (req, res) => {
   try {
     const groupId = req.params.groupId;
-
     const expenses = await Expense.find({ groupId });
-
     let balances = {};
 
     expenses.forEach((exp) => {
@@ -144,7 +140,6 @@ exports.calculateBalances = async (req, res) => {
           if (!balances[key]) {
             balances[key] = 0;
           }
-
           balances[key] += s.amount;
         }
       });
@@ -156,14 +151,13 @@ exports.calculateBalances = async (req, res) => {
   }
 };
 
-
 // GET EXPENSE DETAILS
 exports.getExpenseDetails = async (req, res) => {
   try {
     const expense = await Expense.findById(req.params.expenseId)
-      .populate("paidBy", "name")
-      .populate("splits.user", "name")
-      .populate("splitBetween", "name");
+    .populate("paidBy", "name")
+    .populate("splits.user", "name")
+    .populate("splitBetween", "name");
 
     if (!expense) {
       return res.status(404).json({
@@ -196,12 +190,10 @@ exports.getExpenseDetails = async (req, res) => {
   }
 };
 
-
 // DELETE EXPENSE
 exports.deleteExpense = async (req, res) => {
   try {
     const { expenseId } = req.params;
-
     const expense = await Expense.findById(expenseId);
 
     if (!expense) {
@@ -209,7 +201,6 @@ exports.deleteExpense = async (req, res) => {
     }
 
     await Expense.findByIdAndDelete(expenseId);
-
     res.json({ message: "Expense deleted" });
 
   } catch (err) {
@@ -217,13 +208,11 @@ exports.deleteExpense = async (req, res) => {
   }
 };
 
-
 // UPDATE EXPENSE
 exports.updateExpense = async (req, res) => {
   try {
     const { expenseId } = req.params;
     const { description, totalAmount, paidBy, splitBetween, splits } = req.body;
-
     const expense = await Expense.findById(expenseId);
 
     if (!expense) {
@@ -231,9 +220,7 @@ exports.updateExpense = async (req, res) => {
     }
 
     const group = await Group.findById(expense.groupId);
-
     const groupMemberIds = group.members.map(m => m.toString());
-
     let finalSplits = expense.splits;
 
     if (splits && splits.length > 0) {
@@ -246,9 +233,9 @@ exports.updateExpense = async (req, res) => {
       }
 
       finalSplits = splits.map(s => ({
-  user: new mongoose.Types.ObjectId(s.user),
-  amount: Number(s.amount)
-}));
+        user: new mongoose.Types.ObjectId(s.user),
+        amount: Number(s.amount)
+      }));
     }
 
     else if (splitBetween && splitBetween.length > 0) {
@@ -265,7 +252,6 @@ exports.updateExpense = async (req, res) => {
     if (paidBy) expense.paidBy = paidBy;
 
     expense.splits = finalSplits;
-
     await expense.save();
 
     res.json({
@@ -278,20 +264,16 @@ exports.updateExpense = async (req, res) => {
   }
 };
 
-
 // SETTLE EXPENSES
 exports.settleExpenses = async (req, res) => {
   try {
     const groupId = req.params.groupId;
-
     const expenses = await Expense.find({ groupId });
-
     let paid = {};
     let shouldPay = {};
 
     expenses.forEach((exp) => {
       const payer = exp.paidBy.toString();
-
       paid[payer] = (paid[payer] || 0) + exp.totalAmount;
 
       exp.splits.forEach((s) => {
@@ -336,7 +318,6 @@ exports.settleExpenses = async (req, res) => {
 
     let settlements = [];
 
-    // -------- SMALL GROUP = EXACT OPTIMAL --------
     if (persons.length <= 12) {
 
       const arr = persons.map(p => ({ ...p }));
@@ -390,7 +371,6 @@ exports.settleExpenses = async (req, res) => {
       settlements = best || [];
     }
 
-    // -------- LARGE GROUP = GREEDY FAST --------
     else {
       let creditors = [];
       let debtors = [];

@@ -1,5 +1,4 @@
-import {BrowserRouter,Routes,Route}
-from "react-router-dom";
+import {BrowserRouter,Routes,Route} from "react-router-dom";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -10,25 +9,22 @@ import SettlementPage from "./pages/SettlementPage";
 
 function App(){
 
- return(
+  return(
 
-  <BrowserRouter>
+    <BrowserRouter>
 
-   <Routes>
+      <Routes>
+        <Route path="/" element={<Login/>}/>
+        <Route path="/register" element={<Register/>}/>
+        <Route path="/dashboard" element={<Dashboard/>}/>
+        <Route path="/create-group" element={<CreateGroup/>}/>
+        <Route path="/group/:groupId" element={<GroupPage/>}/>
+        <Route path="/settlement/:groupId" element={<SettlementPage />} />
+      </Routes>
 
-    <Route path="/" element={<Login/>}/>
-    <Route path="/register" element={<Register/>}/>
-    <Route path="/dashboard" element={<Dashboard/>}/>
-    <Route path="/create-group" element={<CreateGroup/>}/>
-    <Route path="/group/:groupId" element={<GroupPage/>}/>
-    <Route path="/settlement/:groupId" element={<SettlementPage />} />
+    </BrowserRouter>
 
-
-   </Routes>
-
-  </BrowserRouter>
-
- );
+  );
 
 }
 

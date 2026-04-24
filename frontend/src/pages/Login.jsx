@@ -5,48 +5,48 @@ import "../styles/auth.css";
 
 function Login(){
 
- const navigate = useNavigate();
+  const navigate = useNavigate();
 
- const [email,setEmail] = useState("");
- const [password,setPassword] = useState("");
- const [error,setError] = useState("");
-const [showPassword,setShowPassword] = useState(false);
+  const [email,setEmail] = useState("");
+  const [password,setPassword] = useState("");
+  const [error,setError] = useState("");
+  const [showPassword,setShowPassword] = useState(false);
 
- const login = async(e)=>{
-  e.preventDefault();
+  const login = async(e)=>{
+    e.preventDefault();
 
-  setError("");
+    setError("");
 
-  if(!email || !password){
-  setError("Please fill all fields");
-  return;
- }
+    if(!email || !password){
+    setError("Please fill all fields");
+    return;
+  }
 
   try{
 
-   const res = await API.post("/auth/login",{email, password});
+    const res = await API.post("/auth/login",{email, password});
 
-   localStorage.setItem("token",res.data.token);
-   localStorage.setItem("username",res.data.user.name);
-   localStorage.setItem("userId", res.data.user.id);
+    localStorage.setItem("token",res.data.token);
+    localStorage.setItem("username",res.data.user.name);
+    localStorage.setItem("userId", res.data.user.id);
 
-   navigate("/dashboard");
+    navigate("/dashboard");
 
   }catch(err){
-  setError(err.response?.data?.message || "Login failed");
+    setError(err.response?.data?.message || "Login failed");
   }
 
- };
+  };
 
- return(
+  return(
 
   <div className="auth-page">
 
-   <div className="auth-container">
+    <div className="auth-container">
 
     {/* App Header */}
 
-<div className="brand">
+  <div className="brand">
 
   <img
     src="/logo.png"
@@ -59,16 +59,16 @@ const [showPassword,setShowPassword] = useState(false);
     <p className="tagline">Split expenses smarter</p>
   </div>
 
-</div>
+  </div>
 
     {/* Login Card */}
 
     <div className="auth-card">
 
      <h2>Welcome Back</h2>
-<p className="sub-text">Sign in to access your dashboard</p>
+      <p className="sub-text">Sign in to access your dashboard</p>
 
-     <form onSubmit={login}>
+      <form onSubmit={login}>
 
       <input
        type="email"
@@ -95,30 +95,30 @@ const [showPassword,setShowPassword] = useState(false);
           onClick={() => setShowPassword(!showPassword)}
         ></i>
 
-</div>
+      </div>
 
       <button type="submit">
-       Login
+        Login
       </button>
 
       {error && <p className="error">{error}</p>}
 
-     </form>
+      </form>
 
-     <p
-      className="auth-link"
-      onClick={()=>navigate("/register")}
-     >
-      New user? Register
-     </p>
+      <p
+        className="auth-link"
+        onClick={()=>navigate("/register")}
+      >
+        New user? Register
+      </p>
+
+      </div>
 
     </div>
 
-   </div>
+    </div>
 
-  </div>
-
- );
+  );
 
 }
 export default Login;

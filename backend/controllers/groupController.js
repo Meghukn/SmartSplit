@@ -16,10 +16,8 @@ exports.createGroup = async (req, res) => {
     }
 
     const creatorId = req.user;
-
     let memberIds = [];
 
-    // Normalize emails + remove duplicates
     const memberEmails = members?.map(e => e.toLowerCase()) || [];
     const uniqueEmails = [...new Set(memberEmails)];
 
@@ -31,29 +29,27 @@ exports.createGroup = async (req, res) => {
       memberIds = users.map((u) => u._id.toString());
     }
 
-    // Remove duplicate IDs
     memberIds = [...new Set(memberIds)];
 
-    // Add creator if not present
     if (!memberIds.includes(creatorId.toString())) {
       memberIds.push(creatorId.toString());
     }
 
     let code;
-let exists = true;
+    let exists = true;
 
-while (exists) {
-  code = generateJoinCode();
-  const found = await Group.findOne({ joinCode: code });
-  if (!found) exists = false;
-}
+    while (exists) {
+      code = generateJoinCode();
+      const found = await Group.findOne({ joinCode: code });
+      if (!found) exists = false;
+    }
 
-const group = await Group.create({
-  groupName,
-  createdBy: creatorId,
-  members: memberIds,
-  joinCode: code
-});
+    const group = await Group.create({
+      groupName,
+      createdBy: creatorId,
+      members: memberIds,
+      joinCode: code
+    });
 
     res.json(group);
   } catch (err) {
@@ -71,7 +67,6 @@ exports.addMember = async (req, res) => {
     }
 
     const emailLower = email.toLowerCase();
-
     const user = await User.findOne({ email: emailLower });
 
     if (!user) {
@@ -88,7 +83,6 @@ exports.addMember = async (req, res) => {
       });
     }
 
-    // 🔥 Only creator can add members
     if (group.createdBy.toString() !== req.user) {
       return res.status(403).json({
         message: "Only group creator can add members",
@@ -106,7 +100,6 @@ exports.addMember = async (req, res) => {
     }
 
     group.members.push(user._id);
-
     await group.save();
 
     res.json(group);
@@ -121,8 +114,8 @@ exports.getMyGroups = async (req, res) => {
     const groups = await Group.find({
       members: req.user,
     })
-      .populate("createdBy", "name")
-      .sort({ createdAt: -1 });
+    .populate("createdBy", "name")
+    .sort({ createdAt: -1 });
 
     const groupsWithTotals = await Promise.all(
       groups.map(async (group) => {
@@ -159,7 +152,6 @@ exports.deleteGroup = async (req, res) => {
       return res.status(404).json({ message: "Group not found" });
     }
 
-    // 🔥 Only creator can delete
     if (group.createdBy.toString() !== req.user) {
       return res.status(403).json({
         message: "Only creator can delete group",
@@ -178,8 +170,8 @@ exports.deleteGroup = async (req, res) => {
 exports.getGroupDetails = async (req, res) => {
   try {
     const group = await Group.findById(req.params.groupId)
-  .populate("members", "name email")
-  .populate("createdBy", "name email");
+    .populate("members", "name email")
+    .populate("createdBy", "name email");
 
     if (!group) {
       return res.status(404).json({ message: "Group not found" });
@@ -234,10 +226,10 @@ exports.joinByCode = async (req, res) => {
   }
 };
 
+//Remove Member
 exports.removeMember = async (req, res) => {
   try {
     const { groupId, memberId } = req.body;
-
     const group = await Group.findById(groupId);
 
     if (!group) {
