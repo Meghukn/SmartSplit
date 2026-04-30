@@ -140,7 +140,7 @@ function SettlementPage() {
 
   const baseUrl = window.location.origin; // works in localhost + production
 
-  const link = `${baseUrl}/group/${groupId}/summary`;
+  const link = `${baseUrl}/settlement/${groupId}`;
 
   return `${lines.join("\n")}
 
